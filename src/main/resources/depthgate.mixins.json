@@ -1,0 +1,12 @@
+{
+	"required": true,
+	"package": "com.depthgate.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"mixins": [
+		"HopperBlockEntityMixin",
+		"LightingProviderMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

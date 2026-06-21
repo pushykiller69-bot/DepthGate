@@ -1,0 +1,14 @@
+{
+	"required": true,
+	"package": "com.depthgate.client.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"client": [
+		"WorldRendererMixin",
+		"MinecraftClientMixin",
+		"ParticleManagerMixin",
+		"BiomeColorCacheMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

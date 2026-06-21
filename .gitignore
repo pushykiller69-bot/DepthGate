@@ -1,0 +1,44 @@
+# ============================================
+# DepthGate Mod - .gitignore
+# ============================================
+
+# ---- Gradle ----
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+# ---- IDE ----
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.settings/
+.classpath
+.project
+bin/
+.vscode/
+
+# ---- Fabric Loom ----
+run/
+remappedSrc/
+.fabric/
+
+# ---- Java / OS ----
+*.class
+*.jar
+*.log
+*.tmp
+hs_err_pid*
+
+# ---- OS junk ----
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# ---- Misc ----
+*.swp
+*.swo
+*~
