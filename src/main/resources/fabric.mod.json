@@ -1,0 +1,28 @@
+{
+	"schemaVersion": 1,
+	"id": "depthgate",
+	"version": "${version}",
+	"name": "DepthGate",
+	"description": "Vertical chunk priority loading, extended render distance, and deep FPS optimization.",
+	"authors": ["Antigravity"],
+	"license": "CC0-1.0",
+	"icon": "assets/depthgate/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": ["com.depthgate.DepthGateMod"],
+		"client": ["com.depthgate.client.DepthGateClient"]
+	},
+	"mixins": [
+		"depthgate.mixins.json",
+		{
+			"config": "depthgate.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"minecraft": "~1.21.1",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}
