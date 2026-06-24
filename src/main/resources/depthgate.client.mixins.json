@@ -1,0 +1,16 @@
+{
+	"required": true,
+	"package": "com.depthgate.client.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"client": [
+		"WorldRendererMixin",
+		"MinecraftClientMixin",
+		"ParticleManagerMixin",
+		"EntityRendererMixin",
+		"ChunkDeliveryMixin",
+		"WorldLoadMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}
