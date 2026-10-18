@@ -3,13 +3,6 @@ import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.util.List;
 import java.util.Locale;
-/**
- * Detects the active garbage collector and warns the user if they're not running
- * a low-pause collector (Shenandoah or ZGC). Switching to Shenandoah reduces
- * GC pause from 50–200ms down to under 5ms — more impact than any code change.
- *
- * <p>Pure Java — uses only {@code java.lang.management}.</p>
- */
 public class GCDetector {
     private static final GCDetector INSTANCE = new GCDetector();
 
@@ -22,10 +15,6 @@ public class GCDetector {
         return INSTANCE;
     }
 
-    /**
-     * Reads the active GC beans and determines the collector type.
-     * Call once during mod initialization.
-     */
     public void detect() {
         List<GarbageCollectorMXBean> beans = ManagementFactory.getGarbageCollectorMXBeans();
         for (GarbageCollectorMXBean bean : beans) {
@@ -50,10 +39,6 @@ public class GCDetector {
         }
     }
 
-    /**
-     * Updates the last pause duration from GC beans.
-     * Call periodically (e.g. once per second) to keep stats fresh.
-     */
     public void updateStats() {
         List<GarbageCollectorMXBean> beans = ManagementFactory.getGarbageCollectorMXBeans();
         long totalTime = 0;
@@ -84,14 +69,11 @@ public class GCDetector {
         return totalCollections;
     }
 
-    /**
-     * Returns a user-friendly warning message, or null if no warning needed.
-     */
     public String getWarningMessage() {
         if (lowPauseCollector) return null;
         return String.format(
-            "§e[DepthGate]§r You are using §c%s§r. Switch to §aShenandoah§r for up to §a40x§r lower GC pauses. " +
-            "Add §b-XX:+UseShenandoahGC§r to your JVM arguments.",
+            "\u00A7e[DepthGate]\u00A7r You are using \u00A7c%s\u00A7r. Shenandoah or ZGC greatly reduces GC stutter. " +
+            "Add \u00A7b-XX:+UseShenandoahGC\u00A7r to your JVM arguments (if your Java build supports it).",
             gcTypeName
         );
     }

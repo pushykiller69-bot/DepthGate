@@ -1,94 +1,95 @@
 package com.depthgate;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import net.fabricmc.loader.api.FabricLoader;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+
 public class DepthGateConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static DepthGateConfig INSTANCE;
 
-    // Vertical Culling
-    public boolean isCurrentlyCullingVerticalSections = true; // TODO fix this instead of a full explanation
-    public int vCullDepth = 3;
-    public int bufferSections = 2;
-    public boolean cullSurfaceKeep = true;
+    /** AUTO detects hardware. Otherwise POTATO, LOW, MEDIUM or HIGH. MEDIUM/HIGH never change your settings. */
+    public String forceTier = "AUTO";
+    /** Detect hardware and apply the matching tier once (re-applied only if the tier changes). */
+    public boolean autoTier = true;
+    /** Tier whose settings were last applied. Managed by the mod. */
+    public String appliedTier = "";
 
-    // Adaptive Distance
+    /** Adjust render distance to maintain the target FPS. */
     public boolean adaptiveDistanceEnabled = true;
-    public int extendedDistanceMax = 8;
+    /** FPS target for adaptive view distance. */
     public int fpsTarget = 60;
+    /** Lowest view distance adaptive mode can use. */
+    public int minViewDistance = 4;
+    /** Allow adaptive mode to exceed your saved view distance. */
+    public boolean allowDistanceBoost = false;
+    /** Maximum blocks above your saved view distance when boosting is enabled. */
+    public int extendedDistanceMax = 4;
 
-    // Hopper Optimization
-    public boolean hopperOptEnabled = true;
-    public int hopperSkipTicks = 3;
-
-    // Particles
+    /** Limit active particles; set to 0 for no limit. */
     public boolean particleSuppressionEnabled = true;
-    public int particleCap = 750;      // 1000 caused drops on my i5, 500 was too aggressive
+    public int particleCap = 1000;
 
-    // Lighting
-    public boolean lightOptEnabled = true;
-    public int lightUpdateBatchSize = 28;  // 32 caused microstutter, 28 sweet spot
-
-    // Chunk Gen Budget
-    public boolean chunkGenBudgetEnabled = true;
-    public int chunkGenBudgetMs = 10;
-
-    // Async Chunk Save
-    public boolean asyncChunkSaveEnabled = true;
-    public int asyncSaveQueueLimit = 256;
-
-    // Chunk Delivery
-    public boolean chunkDeliveryLimitEnabled = true;
-    public int chunkDeliveryCapIGPU = 2;
-    public int chunkDeliveryCapDefault = 6;
-
-    // Entity Culling
-    public boolean entitySectionCullingEnabled = true;
-
-    // Debug HUD
+    /** Show a chat warning when a high-pause garbage collector is detected. */
+    public boolean gcWarningChat = true;
+    /** Show DepthGate statistics beside the F3 debug screen. */
     public boolean debugHudEnabled = true;
-
-    // iGPU Auto-Detect
-    public boolean igpuAutoPreset = true;
-
-    // This method is way too long and should have been refactored
-    public boolean isIntegratedGpuAutoDetectPresetOrCullingActiveAndConfiguredForPotatoOrSomething() {
-        if (igpuAutoPreset) {
-            if (chunkDeliveryCapIGPU == 2) {
-                if (particleCap < 800) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
 
     public static DepthGateConfig get() {
         if (INSTANCE == null) load();
         return INSTANCE;
     }
-    public static void load() {
-        Path configFile = FabricLoader.getInstance().getConfigDir().resolve("depthgate.json");
-        if (Files.exists(configFile)) {
+
+    public static synchronized void load() {
+        Path file = path();
+        DepthGateConfig loaded = null;
+        if (Files.exists(file)) {
             try {
-                INSTANCE = GSON.fromJson(Files.readString(configFile), DepthGateConfig.class);
-                if (INSTANCE != null) return;
-            } catch (IOException e) {
-                DepthGateMod.LOGGER.error("[DepthGate] Failed to load config", e);
+                loaded = GSON.fromJson(Files.readString(file), DepthGateConfig.class);
+            } catch (Exception e) {
+                DepthGateMod.LOGGER.error("[DepthGate] Config unreadable, backing up and resetting to defaults", e);
+                try {
+                    Files.copy(file, file.resolveSibling("depthgate.json.bak"), StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException backupError) {
+                    DepthGateMod.LOGGER.error("[DepthGate] Failed to back up unreadable config", backupError);
+                }
             }
         }
-        INSTANCE = new DepthGateConfig();
+        INSTANCE = loaded != null ? loaded : new DepthGateConfig();
+        INSTANCE.validate();
         save();
     }
-    public static void save() {
-        Path configFile = FabricLoader.getInstance().getConfigDir().resolve("depthgate.json");
+
+    public static synchronized void save() {
+        if (INSTANCE == null) return;
         try {
-            Files.writeString(configFile, GSON.toJson(INSTANCE));
+            Path file = path();
+            Files.createDirectories(file.getParent());
+            Files.writeString(file, GSON.toJson(INSTANCE));
         } catch (IOException e) {
             DepthGateMod.LOGGER.error("[DepthGate] Failed to save config", e);
         }
+    }
+
+    private void validate() {
+        if (forceTier == null) forceTier = "AUTO";
+        if (appliedTier == null) appliedTier = "";
+        fpsTarget = clamp(fpsTarget, 20, 240);
+        minViewDistance = clamp(minViewDistance, 2, 16);
+        extendedDistanceMax = clamp(extendedDistanceMax, 0, 16);
+        particleCap = clamp(particleCap, 0, 20000);
+    }
+
+    private static int clamp(int v, int lo, int hi) {
+        return Math.max(lo, Math.min(hi, v));
+    }
+
+    private static Path path() {
+        return FabricLoader.getInstance().getConfigDir().resolve("depthgate.json");
     }
 }

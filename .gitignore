@@ -28,6 +28,7 @@ remappedSrc/
 # ---- Java / OS ----
 *.class
 *.jar
+!gradle/wrapper/gradle-wrapper.jar
 *.log
 *.tmp
 hs_err_pid*

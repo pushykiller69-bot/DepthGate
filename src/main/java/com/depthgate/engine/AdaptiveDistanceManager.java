@@ -1,139 +1,99 @@
 package com.depthgate.engine;
-/**
- * Dynamically adjusts horizontal render distance based on FPS performance.
- * When vertical culling frees up budget, this manager extends the view distance;
- * when FPS drops, it scales back.
- *
- * <p>This class is intentionally version-agnostic. It receives FPS/config values
- * as primitives and returns distance actions — the caller applies them to MC.</p>
- */
+
 public class AdaptiveDistanceManager {
-    private static final AdaptiveDistanceManager INSTANCE = new AdaptiveDistanceManager();
+    public record Action(int newDistance, boolean changed) {}
 
-    private int origDistance = -1;
-    private int curBoost = 0;
-    private int stableFrames = 0;
-    private int lowFrames = 0;
+    private static final int WINDOW = 8;
+    private static final int MIN_SAMPLES = 5;
+    private static final long SAMPLE_MS = 1000;
+    private static final long REDUCE_COOLDOWN_MS = 8_000;
+    private static final long RESTORE_BASE_MS = 45_000;
+    private static final long RESTORE_MAX_MS = 10 * 60_000;
 
-    // AdaptiveDistanceManager.java  
-    // v1: was using currentFps directly, caused distance to bounce constantly
-    // v2: tried EMA with alpha=0.1, still too reactive
-    // v3: variance-based — this one actually works
-    // private double ewmaFps = 60.0;
-    // private static final double EWMA_ALPHA = 0.15;
-    // private long[] frameTimes = new long[60];
+    private final int[] samples = new int[WINDOW];
+    private int count = 0;
+    private int idx = 0;
+    private long lastSampleMs = Long.MIN_VALUE;
+    private long lastChangeMs = Long.MIN_VALUE;
+    private long lastRestoreMs = Long.MIN_VALUE;
+    private long restoreBackoffMs = RESTORE_BASE_MS;
 
-    private final long[] frameTimes = new long[60];
-    private int frameIndex = 0;
+    private int userDistance = -1;
+    private int applied = -1;
 
-    public static AdaptiveDistanceManager getInstance() {
-        return INSTANCE;
-    }
-
-    /**
-     * Result of a tick — tells the caller what distance to set, if anything changed.
-     */
-    public record DistanceAction(int newDistance, boolean changed) {}
-
-    /**
-     * Runs one tick of the adaptive algorithm.
-     *
-     * @param currentFps   the client's current FPS reading
-     * @param currentDistance the current view distance setting
-     * @param renderRatio  fraction of vertical sections currently active (0.0–1.0)
-     * @param fpsTarget    the user's configured FPS target
-     * @param maxBoost     maximum extra chunks the mod is allowed to add
-     * @return a DistanceAction indicating the new distance and whether it changed
-     */
-    public DistanceAction tick(int currentFps, int currentDistance, float renderRatio, int fpsTarget, int maxBoost) {
-        if (origDistance == -1) {
-            origDistance = currentDistance;
+    public Action tick(long nowMs, int fps, int currentDistance, int fpsTarget,
+                       int minDistance, boolean allowBoost, int maxBoost) {
+        if (userDistance == -1) {
+            userDistance = currentDistance;
         }
-
-        frameTimes[frameIndex] = currentFps;
-        frameIndex = (frameIndex + 1) % frameTimes.length;
-
-        int avgFps = getAvgFps();
-        double stdDev = getFrameTimeStdDev(avgFps);
-        int scaledMaxBoost = (int) (renderRatio * maxBoost);
-        scaledMaxBoost = Math.max(0, Math.min(scaledMaxBoost, maxBoost));
-
-        // Only increase distance when frame times are stable (low variance)
-        // AND average is comfortably above target. This prevents oscillation
-        // where a distance bump causes its own stutter.
-        boolean varianceStable = stdDev < 8.0;
-
-        if (avgFps > fpsTarget + 15 && varianceStable) {
-            stableFrames++;
-            lowFrames = 0;
-            if (stableFrames > 60 && curBoost < scaledMaxBoost) {
-                curBoost++;
-                stableFrames = 0;
-                return new DistanceAction(origDistance + curBoost, true);
-            }
-        } else if (avgFps < fpsTarget) {
-            lowFrames++;
-            stableFrames = 0;
-            if (lowFrames > 40 && curBoost > 0) {
-                curBoost--;
-                lowFrames = 0;
-                return new DistanceAction(origDistance + curBoost, true);
-            }
-            if (lowFrames > 80 && curBoost == 0 && currentDistance > 2) {
-                lowFrames = 0;
-                return new DistanceAction(currentDistance - 1, true);
-            }
-        } else {
-            stableFrames = 0;
-            lowFrames = Math.max(0, lowFrames - 1);
+        if (applied != -1 && currentDistance != applied) {
+            userDistance = currentDistance;
+            applied = currentDistance;
+            clearSamples();
+            lastChangeMs = nowMs;
+            return new Action(currentDistance, false);
         }
-        return new DistanceAction(currentDistance, false);
-    }
-
-    private int getAvgFps() {
-        long sum = 0;
-        int count = 0;
-        for (long ft : frameTimes) {
-            if (ft > 0) { sum += ft; count++; }
-        }
-        return count > 0 ? (int) (sum / count) : 60;
-    }
-
-    /**
-     * Computes frame time standard deviation to detect instability.
-     * Only adjusts render distance when variance is low, preventing the
-     * oscillation loop where distance changes cause their own stutter.
-     */
-    private double getFrameTimeStdDev(int avgFps) {
-        if (avgFps == 0) return 0;
-        double sumSqDiff = 0;
-        int count = 0;
-        for (long ft : frameTimes) {
-            if (ft > 0) {
-                double diff = ft - avgFps;
-                sumSqDiff += diff * diff;
-                count++;
+        if (lastSampleMs == Long.MIN_VALUE || nowMs - lastSampleMs >= SAMPLE_MS) {
+            lastSampleMs = nowMs;
+            if (fps > 0) {
+                samples[idx] = fps;
+                idx = (idx + 1) % WINDOW;
+                if (count < WINDOW) count++;
             }
         }
-        return count > 1 ? Math.sqrt(sumSqDiff / (count - 1)) : 0;
+        if (count < MIN_SAMPLES) return new Action(currentDistance, false);
+
+        int sum = 0, min = Integer.MAX_VALUE;
+        for (int i = 0; i < count; i++) {
+            sum += samples[i];
+            min = Math.min(min, samples[i]);
+        }
+        double avg = (double) sum / count;
+        long sinceChange = lastChangeMs == Long.MIN_VALUE ? Long.MAX_VALUE : nowMs - lastChangeMs;
+        int floor = Math.max(2, minDistance);
+
+        if (avg < fpsTarget * 0.9 && currentDistance > floor && sinceChange >= REDUCE_COOLDOWN_MS) {
+            if (lastRestoreMs != Long.MIN_VALUE && nowMs - lastRestoreMs < 20_000) {
+                restoreBackoffMs = Math.min(RESTORE_MAX_MS, restoreBackoffMs * 2);
+            }
+            return commit(nowMs, currentDistance - 1, currentDistance);
+        }
+
+        boolean healthy = avg >= fpsTarget * 1.25 && min >= fpsTarget;
+        boolean steady = avg >= fpsTarget && sinceChange >= restoreBackoffMs;
+        if ((healthy && sinceChange >= REDUCE_COOLDOWN_MS) || steady) {
+            int ceiling = allowBoost ? userDistance + Math.max(0, maxBoost) : userDistance;
+            if (currentDistance < ceiling) {
+                lastRestoreMs = nowMs;
+                return commit(nowMs, currentDistance + 1, currentDistance);
+            }
+        }
+        return new Action(currentDistance, false);
     }
 
-    public int getCurrentBoost() { return curBoost; }
-
-    /**
-     * Returns the original render distance to restore on shutdown.
-     * Returns -1 if never initialized.
-     */
-    public int getOriginalRenderDistance() {
-        return origDistance;
+    private Action commit(long nowMs, int newDistance, int currentDistance) {
+        applied = newDistance;
+        lastChangeMs = nowMs;
+        clearSamples();
+        return new Action(newDistance, newDistance != currentDistance);
     }
+
+    private void clearSamples() {
+        count = 0;
+        idx = 0;
+        lastSampleMs = Long.MIN_VALUE;
+    }
+
+    public int getUserDistance() { return userDistance; }
+
+    public int getOffset() { return (applied == -1 || userDistance == -1) ? 0 : applied - userDistance; }
 
     public void reset() {
-        curBoost = 0;
-        stableFrames = 0;
-        lowFrames = 0;
-        origDistance = -1;
-        frameIndex = 0;
-        for (int i = 0; i < frameTimes.length; i++) frameTimes[i] = 0;
+        userDistance = -1;
+        applied = -1;
+        lastChangeMs = Long.MIN_VALUE;
+        lastRestoreMs = Long.MIN_VALUE;
+        restoreBackoffMs = RESTORE_BASE_MS;
+        clearSamples();
     }
 }
