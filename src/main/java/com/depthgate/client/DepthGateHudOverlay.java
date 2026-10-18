@@ -34,8 +34,7 @@ public class DepthGateHudOverlay {
     private static void renderSupplement(DrawContext context) {
         MinecraftClient client = MinecraftClient.getInstance();
         DepthGateConfig config = DepthGateConfig.get();
-        if (!config.debugHudEnabled || (config.compactDebugHudEnabled && client.getDebugHud() != null
-                && client.getDebugHud().shouldShowDebugHud())) return;
+        if (!config.debugHudEnabled) return;
         if (client.getDebugHud() == null || !client.getDebugHud().shouldShowDebugHud()) return;
 
         Snapshot current = snapshot(client);
