@@ -10,7 +10,7 @@ DepthGate does not replace the renderer. Use it next to Sodium (and Lithium / Di
 2. **Adaptive view distance** – samples FPS once per second, lowers distance by 1 when the average is clearly under `fpsTarget`, restores it toward *your* setting when FPS is healthy (with exponential back-off, so it does not oscillate). Manual changes are respected. Your own value is restored on disconnect/quit. Going above your setting is opt-in (`allowDistanceBoost`).
 3. **Particle cap** – hard limit on live particles (`particleCap`, 0 = unlimited).
 4. **GC advisor** – detects the collector and tells you if you are not on Shenandoah/ZGC.
-5. **Debug HUD** – tier, GPU, GC stats, view-distance offset and RAM next to F3.
+5. **Debug HUD** – the lightweight F3 panel shows FPS, approximate server TPS, ping, coordinates, CPU, GPU and RAM. Set `compactDebugHudEnabled` to `false` to keep vanilla F3.
 
 ## Config (`config/depthgate.json`)
 
@@ -26,7 +26,8 @@ DepthGate does not replace the renderer. Use it next to Sodium (and Lithium / Di
   "particleSuppressionEnabled": true,
   "particleCap": 1000,
   "gcWarningChat": true,
-  "debugHudEnabled": true
+  "debugHudEnabled": true,
+  "compactDebugHudEnabled": true
 }
 ```
 

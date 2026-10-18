@@ -39,6 +39,8 @@ public class DepthGateConfig {
     public boolean gcWarningChat = true;
     /** Show DepthGate statistics beside the F3 debug screen. */
     public boolean debugHudEnabled = true;
+    /** Replace the vanilla F3 screen with a lightweight panel while it is open. */
+    public boolean compactDebugHudEnabled = true;
 
     public static DepthGateConfig get() {
         if (INSTANCE == null) load();

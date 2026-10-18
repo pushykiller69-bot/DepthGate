@@ -3,7 +3,9 @@
 	"package": "com.depthgate.client.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"client": [
-		"ParticleManagerMixin"
+		"ParticleManagerMixin",
+		"DebugHudMixin",
+		"ClientPlayNetworkHandlerMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

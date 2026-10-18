@@ -5,6 +5,7 @@ import com.depthgate.DepthGateMod;
 import com.depthgate.engine.AdaptiveDistanceManager;
 import com.depthgate.engine.GCDetector;
 import com.depthgate.engine.PerformanceTier;
+import com.depthgate.engine.ServerTpsTracker;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -48,7 +49,10 @@ public class DepthGateClient implements ClientModInitializer {
         }
 
         ClientTickEvents.END_CLIENT_TICK.register(this::onTick);
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> restoreDistance(client));
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            ServerTpsTracker.reset();
+            restoreDistance(client);
+        });
         ClientLifecycleEvents.CLIENT_STOPPING.register(this::restoreDistance);
         DepthGateHudOverlay.register();
     }
